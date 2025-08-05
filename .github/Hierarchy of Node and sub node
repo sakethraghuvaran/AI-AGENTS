@@ -1,0 +1,153 @@
+# --- Installation Instructions ---
+# Before running this script for the first time, you need to install the required libraries.
+# Open your terminal or command prompt and run the following commands one by one:
+#
+# 1. pip install spacy
+# 2. pip install networkx
+# 3. pip install matplotlib
+# 4. pip install pygraphviz
+# 5. python -m spacy download en_core_web_sm
+#
+# After running these commands, you can execute this Python script.
+# --------------------------------------------------------------------
+
+try:
+    import spacy
+    import networkx as nx
+    import matplotlib.pyplot as plt
+    from collections import Counter
+    import pygraphviz # Import pygraphviz
+except ModuleNotFoundError as e:
+    print(f"--- ERROR: A required library is missing ---")
+    print(f"Details: {e}")
+    print("\nIt looks like one of the libraries needed to run this script is not installed.")
+    print("Please install them by running these commands in your terminal:")
+    print("\n  pip install spacy")
+    print("  pip install networkx")
+    print("  pip install matplotlib")
+    print("  pip install pygraphviz\n") # Add pygraphviz to installation instructions
+    print("After installing the libraries, you also need to download the language model:")
+    print("  python -m spacy download en_core_web_sm\n")
+    exit()
+
+# --- Main Code ---
+
+def load_spacy_model():
+    """Loads the spaCy model and handles errors if it's not downloaded."""
+    try:
+        return spacy.load("en_core_web_sm")
+    except OSError:
+        print("--- ERROR: spaCy language model not found ---")
+        print("The 'en_core_web_sm' model is missing.")
+        print("Please download it by running this command in your terminal:")
+        print("\n  python -m spacy download en_core_web_sm\n")
+        return None
+
+def get_full_object(token):
+    """Helper function to get the full noun phrase for an object."""
+    # Collect all children that are part of the object phrase
+    obj_phrase = [child.text for child in token.subtree]
+    return " ".join(obj_phrase)
+
+def generate_memory_map(text):
+    """
+    Analyzes text to generate and display a hierarchical memory map based on cluster relationship.
+
+    Args:
+        text (str): The input text to generate the memory map from.
+    """
+    nlp = load_spacy_model()
+    if nlp is None:
+        return
+
+    doc = nlp(text)
+    G = nx.DiGraph() # Use a Directed Graph for hierarchy
+
+    # --- 1. Identify the main subject ---
+    subjects = [token.text for token in doc if token.dep_ == "nsubj"]
+    if not subjects:
+        print("Could not determine a main subject. Please try a different text.")
+        return
+    main_subject = Counter(subjects).most_common(1)[0][0]
+
+    # --- 2. Add nodes and relationships ---
+    G.add_node(main_subject, label=main_subject, color='gold', size=3000)
+
+    # Define verbs for categorization
+    like_verbs = ["like", "love", "enjoy", "prefer", "adore"]
+    dislike_verbs = ["dislike", "hate", "detest"]
+
+    for sent in doc.sents:
+        root = sent.root
+
+        # --- 3. Find relationships (like/dislike) ---
+        is_negated = any(child.dep_ == 'neg' for child in root.children)
+
+        # Find the object of the verb
+        obj = None
+        for child in root.children:
+            if child.dep_ in ('dobj', 'attr', 'acomp'): # direct object, attribute, adjectival complement
+                obj = child
+                break
+
+        if obj:
+            full_object_text = get_full_object(obj)
+            category_node = None
+
+            # Check for 'like' verbs
+            if root.lemma_ in like_verbs:
+                category_node = "Dislikes" if is_negated else "Likes"
+
+            # Check for 'dislike' verbs
+            elif root.lemma_ in dislike_verbs:
+                category_node = "Likes" if is_negated else "Dislikes"
+
+            if category_node:
+                # Add category node if it doesn't exist
+                if not G.has_node(category_node):
+                    G.add_node(category_node, label=category_node, color='skyblue', size=2000)
+                    G.add_edge(main_subject, category_node)
+
+                # Add the object node and connect it to the category
+                if not G.has_node(full_object_text):
+                    G.add_node(full_object_text, label=full_object_text, color='lightgreen', size=1500)
+                G.add_edge(category_node, full_object_text)
+
+
+    # --- 4. Visualize the Graph ---
+    if len(G.nodes) <= 1:
+        print("\nCould not extract enough information to build a map.")
+        print("Try providing more descriptive sentences (e.g., 'I like apples', 'I don't like oranges').")
+        return
+
+    plt.figure(figsize=(12, 8), dpi=100)
+
+    # Use a layout that is good for hierarchies
+    pos = nx.nx_agraph.graphviz_layout(G, prog='dot')
+
+    node_colors = [node[1]['color'] for node in G.nodes(data=True)]
+    node_sizes = [node[1]['size'] for node in G.nodes(data=True)]
+    labels = {node: data['label'] for node, data in G.nodes(data=True)}
+
+    nx.draw(G, pos, labels=labels, with_labels=True, node_color=node_colors, node_size=node_sizes,
+            font_size=10, font_weight='bold', edge_color='#999999', arrows=True,
+            arrowstyle='->', arrowsize=20)
+
+    plt.title("Hierarchical Memory Map", fontsize=20)
+    plt.show()
+
+if __name__ == '__main__':
+    # --- Get User Input ---
+    print("--- Hierarchical Memory Map Generator ---")
+    print("Please describe something using sentences (e.g., 'I like pizza. I don't like spinach.')")
+
+    input_text = input("\nEnter your text here: ")
+
+    if input_text and not input_text.isspace():
+        print("\nText received. Generating hierarchical memory map...")
+        generate_memory_map(input_text)
+    else:
+        print("\nNo input text was provided. To demonstrate, a default example will be used.")
+        # Example text that demonstrates the new hierarchical logic
+        dummy_text = "I am Saketh. I like to watch movies. I don't like korean movies. I don't like hot places like arizona."
+        generate_memory_map(dummy_text)
