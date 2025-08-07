@@ -1,0 +1,84 @@
+import torch
+import torch.nn.functional as F
+import numpy as np
+
+# A mock vocabulary
+vocab = {
+    'start': 0, 'the': 1, 'cat': 2, 'sat': 3, 'on': 4, 'mat': 5, 'end': 6
+}
+# Reverse mapping for easy printing
+idx_to_word = {i: w for w, i in vocab.items()}
+vocab_size = len(vocab)
+
+# --- Mock Autoregressive Model ---
+# This dictionary represents the conditional probability distributions a trained model
+# might output for each step. In a real model, this would be a neural network.
+# The keys are tuples of previous words (tokens), and the values are
+# probability distributions over the vocabulary (as a PyTorch tensor).
+
+# For simplicity, we'll hardcode some plausible probabilities for our sentence
+# The probabilities are log probabilities, as is common in deep learning to avoid underflow
+mock_conditional_log_probs = {
+    (vocab['start'],): torch.tensor([-1.5, -0.5, -2.5, -3.5, -4.5, -5.5, -6.5]),  # P('the'|'start') should be high
+    (vocab['start'], vocab['the']): torch.tensor([-6.5, -1.5, -0.2, -3.5, -4.5, -5.5, -6.5]),  # P('cat'|'the') should be high
+    (vocab['start'], vocab['the'], vocab['cat']): torch.tensor([-6.5, -2.5, -1.5, -0.1, -4.5, -5.5, -6.5]), # P('sat'|'the cat') should be high
+    (vocab['start'], vocab['the'], vocab['cat'], vocab['sat']): torch.tensor([-6.5, -3.5, -4.5, -1.5, -0.2, -5.5, -6.5]), # P('on'|'the cat sat') should be high
+    (vocab['start'], vocab['the'], vocab['cat'], vocab['sat'], vocab['on']): torch.tensor([-6.5, -0.3, -4.5, -3.5, -1.5, -5.5, -6.5]), # P('the'|'the cat sat on') should be high
+    (vocab['start'], vocab['the'], vocab['cat'], vocab['sat'], vocab['on'], vocab['the']): torch.tensor([-6.5, -3.5, -4.5, -2.5, -1.5, -0.1, -6.5]), # P('mat'|'the cat sat on the') should be high
+}
+
+# Convert log probabilities to probabilities for demonstration
+mock_conditional_probs = {k: F.softmax(v, dim=0) for k, v in mock_conditional_log_probs.items()}
+
+def get_conditional_prob(previous_words_indices, next_word_index):
+    """
+    This function simulates a model's output, giving the probability
+    of the next word given the sequence of previous words.
+    """
+    key = tuple(previous_words_indices)
+    if key in mock_conditional_probs:
+        return mock_conditional_probs[key][next_word_index].item()
+    else:
+        # Fallback for an unknown sequence, assuming very low probability
+        return 1e-10
+
+def calculate_sentence_probability(sentence_list):
+    """
+    Calculates the joint probability of a sentence using the chain rule.
+    """
+    # Start with a placeholder for the initial token
+    previous_tokens = [vocab['start']]
+    total_prob = 1.0
+    
+    print("Calculating sentence probability using the chain rule:")
+    
+    # Iterate through the words of the sentence
+    for word in sentence_list:
+        next_token_idx = vocab[word]
+        
+        # Calculate the conditional probability of the current word
+        p_next_given_prev = get_conditional_prob(previous_tokens, next_token_idx)
+        
+        # Multiply this probability into the total
+        total_prob *= p_next_given_prev
+        
+        # Print the step for demonstration
+        prev_words = ' '.join([idx_to_word[i] for i in previous_tokens[1:]])
+        if prev_words:
+            print(f"P('{word}' | '{prev_words}') = {p_next_given_prev:.6f}")
+        else:
+            print(f"P('{word}') = {p_next_given_prev:.6f}")
+        
+        # Append the current word's index for the next step's condition
+        previous_tokens.append(next_token_idx)
+        
+    return total_prob
+
+# Define the sentence to be analyzed
+sentence = "the cat sat on the mat".split()
+
+# Calculate the joint probability
+joint_probability = calculate_sentence_probability(sentence)
+
+print("\n--- Summary ---")
+print(f"The joint probability of the sentence is: {joint_probability:.10f}")
