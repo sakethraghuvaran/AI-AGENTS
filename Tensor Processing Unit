@@ -1,0 +1,61 @@
+import tensorflow as tf
+import numpy as np
+
+# Define the dimensions
+num_images = 50
+height = 24
+width = 32
+channels = 3  # RGB
+
+# Create a tensor to represent the batch of images
+# We'll use a random tensor for demonstration purposes
+# The shape is (batch_size, height, width, channels)
+images_tensor_tf = tf.random.uniform(shape=(num_images, height, width, channels), dtype=tf.float32)
+
+# Print the shape of the tensor to verify
+print("TensorFlow Tensor Shape:", images_tensor_tf.shape)
+
+# You can also use a NumPy array first and then convert it to a TensorFlow tensor
+# Create a NumPy array with the same shape
+images_array_np = np.random.rand(num_images, height, width, channels).astype(np.float32)
+
+# Convert the NumPy array to a TensorFlow tensor
+images_tensor_from_np = tf.convert_to_tensor(images_array_np)
+
+print("TensorFlow Tensor from NumPy Shape:", images_tensor_from_np.shape)
+
+
+
+
+
+import torch
+
+# Define the dimensions
+num_images = 50
+height = 24
+width = 32
+channels = 3  # RGB
+
+# Create a tensor to represent the batch of images
+# PyTorch typically uses the shape (batch_size, channels, height, width)
+images_tensor_torch = torch.rand(num_images, channels, height, width)
+
+# Print the shape of the tensor to verify
+print("PyTorch Tensor Shape:", images_tensor_torch.shape)
+
+# You can also use a NumPy array and convert it
+import numpy as np
+images_array_np = np.random.rand(num_images, height, width, channels).astype(np.float32)
+
+# PyTorch likes the channel dimension first, so we need to transpose the numpy array
+images_array_transposed = np.transpose(images_array_np, (0, 3, 1, 2))
+
+# Convert the transposed NumPy array to a PyTorch tensor
+images_tensor_from_np = torch.from_numpy(images_array_transposed)
+
+print("PyTorch Tensor from NumPy Shape:", images_tensor_from_np.shape)
+
+# Note: If you don't transpose, you can still create the tensor, but its shape will be
+# (50, 24, 32, 3), which is not the standard PyTorch format for convolutional layers.
+images_tensor_from_np_no_transpose = torch.from_numpy(images_array_np)
+print("PyTorch Tensor (no transpose) Shape:", images_tensor_from_np_no_transpose.shape)
